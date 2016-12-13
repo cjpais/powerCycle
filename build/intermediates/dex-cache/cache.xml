@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.android.support/animated-vector-drawable/23.4.0/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="de4db3785756bfb0915a9f59a9b3f2fea7407be4">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.android.support-animated-vector-drawable-23.4.0_ffa51fbc2d86604479af102904e2b2bb908f1186/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.android.support/appcompat-v7/23.4.0/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="548f06de403a9409f00554b3ee12a9fdea0e236c">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.android.support-appcompat-v7-23.4.0_5ffa92d62166d8ea62344a39279fd31374d789ea/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/incremental-classes/debug/instant-run-bootstrap.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="2f935cd256274b5a096c22780f73bea07d48adc0">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/instant-run-bootstrap_80d703f1b8b6f7158f0409e479e4dd23834c52ea/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/incremental-runtime-classes/debug/instant-run.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="21d6ec70bee3dd090d1ebecd4ce3fb52c33445bd">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/instant-run_c463aa0c66d7606bfdfec52acec1bb28def96f04/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.android.support/support-v4/24.0.0/jars/libs/internal_impl-24.0.0.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="fcaf463e10e69c1923ccf1edeba3b4196d239e00">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/internal_impl-24.0.0_cd6225a8f1435798e8a5de459855a788d414d842/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.android.support/support-v4/24.0.0/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="2f7e6e2dad1bccaf68a8820820adc6c0d5b96d37">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.android.support-support-v4-24.0.0_8f66009448b921df0c19eea69a8e79d4e52b6946/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.google.android.gms/play-services-location/10.0.1/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="44a694d4095be84c2888764b1f7256b385c030ad">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.google.android.gms-play-services-location-10.0.1_8a75aacc8f5de24c897e745f5226cba822024013/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.google.android.gms/play-services-basement/10.0.1/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="756f6297eef79784f5e356dcd4f39865028b2bd0">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.google.android.gms-play-services-basement-10.0.1_671833c398e817daa0ec05cafdf611ab0fa72515/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.google.android.gms/play-services-tasks/10.0.1/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="6addaba208e21c6da776d0ca75b6b23a6ccd5499">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.google.android.gms-play-services-tasks-10.0.1_b119602ff3caae23b605c66f829ef316a6586439/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.android.support/support-vector-drawable/23.4.0/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="c2c594cace5d83a3227b2b6e658ecbfd586d3ed9">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.android.support-support-vector-drawable-23.4.0_f2faf739fa23cb5f420c3dac66a041c6d4992585/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/Library/Android/sdk/extras/android/m2repository/com/android/support/support-annotations/24.0.0/support-annotations-24.0.0.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="2943c74db6d4346ab8c6531adac91fa05c137c40">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/support-annotations-24.0.0_74ecc4feb0a1f840ad24efb4fc545934bdc71336/classes.dex" />
+    </item>
+    <item
+        is-multidex="true"
+        jar="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/exploded-aar/com.google.android.gms/play-services-base/10.0.1/jars/classes.jar"
+        jumboMode="true"
+        optimize="true"
+        revision="23.0.3"
+        sha1="25438f55fc6d906a0e72f30b21487541430ede43">
+        <dex dex="/Users/cjpais/AndroidStudioProjects/PowerCycle/app/build/intermediates/transforms/dex/debug/folders/1000/10/com.google.android.gms-play-services-base-10.0.1_5de56b8cdc2adc7f3f50b07caf3a86c6a674be8b/classes.dex" />
+    </item>
+
+</items>
