@@ -8,6 +8,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -31,9 +32,16 @@ import com.google.android.gms.location.LocationSettingsStatusCodes;
 
 import org.w3c.dom.Text;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.sql.Time;
+import java.text.DateFormat;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
 
@@ -78,13 +86,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public TextView rrText;
     public TextView dragText;
     public TextView speedText;
+    public TextView gradeText;
 
     public ArrayList<Float> pressArr = new ArrayList<Float>(20);
+
+    private boolean outputFile = true;
+    private File file;
+    private String currFile;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         setUI();
         setGAPI();
 
@@ -126,9 +140,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     presAvg += pressArr.get(i);
                 }
                 presAvg /= 20;
-                lastElevation = currElevation;
+                //lastElevation = currElevation;
                 currElevation = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg);
-                Log.d("Elevation avg", SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg) +"");
+                //Log.d("Elevation avg", SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg) +"");
             }
             airDensity = (event.values[0] * 100)/(SPECIFIC_GAS_CONST * 291); // TODO 291 is 64F
         }
@@ -193,15 +207,24 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void updateUI() {
+        boolean firstRun = false;
+        if (currFile == null) {
+            DateFormat dFormat = new SimpleDateFormat("HH-mm-ss-MM-dd-yyyy");
+            Date date = new Date(mCurrentLocation.getTime());
+            currFile = dFormat.format(date);
+            firstRun = true;
+        }
         double velocity = getSpeed();
+        double grade = calcGrade(velocity);
         Log.d("UPDATE", "UPDATING UI FROM LOCATION CHANGED " + mCurrentLocation.getTime());
-        double power = calcPower(velocity);
+        double power = calcPower(velocity, grade);
         speedView.setText("" + velocity);
-        altText.setText("" + mCurrentLocation.getAltitude());
+        altText.setText("" + currElevation);
         distanceText.setText("" + mCurrentLocation.distanceTo(mLastLocation));
         latlongText.setText(mCurrentLocation.getLatitude() + "\n" + mCurrentLocation.getLongitude());
         powerText.setText((int)power + "W");
         speedText.setText(Math.round((velocity*2.23694)*1e1)/1e1 + "MPH");
+        writeCSV(currFile, velocity, grade, firstRun);
     }
 
     private void setUI() {
@@ -215,6 +238,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         rrText = (TextView) findViewById(R.id.rrText);
         dragText = (TextView) findViewById(R.id.dragText);
         speedText = (TextView) findViewById(R.id.speedText);
+        gradeText = (TextView) findViewById(R.id.gradeText);
     }
 
     private void setGAPI() {
@@ -256,16 +280,35 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (velocity < disregardSpeedUnder) {
             return 0;
         }
+        // TODO SHOULD BE LAST ELEVATION USED
         double grade = (currElevation-lastElevation)/mCurrentLocation.distanceTo(mLastLocation);
         if (grade > .27 || grade < -.27) {
             grade = 0;
         }
+        gradeText.setText("" + grade + " " + currElevation);
         Log.d("GRADE", grade + "");
+        lastElevation = currElevation;
         return grade;
     }
 
-    private double calcPower(double velocity) {
-        double grade = calcGrade(velocity);
+    private double calcPower(double velocity, double grade) {
+        /**
+        Log.d("THINGS","THINGS");
+        if (outputFile) {
+            Log.d("OTHER","OTHER");
+            try {
+                Log.d("OUTPUT", "FILEOUT");
+                //file = new File(getApplicationContext().getFilesDir(), "test.csv");
+                OutputStreamWriter outputF = new OutputStreamWriter(getApplicationContext().openFileOutput("test.csv", Context.MODE_APPEND));
+                String test = "test string";
+                outputF.write(test);
+                outputF.flush();
+                outputF.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        **/
 
         if (velocity < disregardSpeedUnder) {
             lastPower = 0;
@@ -283,6 +326,31 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         return lastPower;
     }
+
+    private void writeCSV(String filename, double velocity, double grade, boolean firstRun) {
+        File root = Environment.getExternalStorageDirectory();
+        File dir = new File(root.getAbsolutePath() + "/powerCycle");
+        dir.mkdirs();
+        File output = new File(dir, filename + ".csv");
+
+        try {
+            FileOutputStream fos = new FileOutputStream(output, true);
+            PrintWriter pw = new PrintWriter(fos);
+            if (firstRun) pw.write("time,velocity,lat,long,grade\n");
+            pw.write(mCurrentLocation.getTime() + ","
+                    + velocity + ","
+                    + mCurrentLocation.getLatitude() + ","
+                    + mCurrentLocation.getLongitude() + ","
+                    + grade
+                    + "\n");
+            pw.flush();
+            pw.close();
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     protected void onPause() {
         sensorMan.unregisterListener(this);

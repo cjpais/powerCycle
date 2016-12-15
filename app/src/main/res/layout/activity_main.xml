@@ -122,6 +122,21 @@
         android:layout_column="2"
         android:layout_row="6" />
 
+    <TextView
+        android:text="Calculated Grade"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/gradeStatic"
+        android:layout_column="0"
+        android:layout_row="7" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/gradeText"
+        android:layout_column="2"
+        android:layout_row="7" />
+
 </GridLayout>
 
     <TextView
