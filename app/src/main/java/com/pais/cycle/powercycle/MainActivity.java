@@ -2,12 +2,17 @@ package com.pais.cycle.powercycle;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.AsyncTask;
 import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -15,7 +20,11 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -30,15 +39,18 @@ import com.google.android.gms.location.LocationSettingsResult;
 import com.google.android.gms.location.LocationSettingsStates;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
 
-import org.w3c.dom.Text;
+import org.json.JSONException;
+import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.sql.Time;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.text.DateFormat;
-import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -57,20 +69,21 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private double lastPower;
     private float lastElevation;
     private float currElevation;
+    private float currTemp = 0.0F;
 
     // Input Parameters As Statics Temp
-    private static double RIDER_WEIGHT_KG = 62.5;
-    private static double BIKE_WEIGHT_KG = 9.5;
-    private static double COMBINED_WEIGHT = RIDER_WEIGHT_KG + BIKE_WEIGHT_KG;
-    private static double RIDER_HEIGHT_M = 1.7;
-    private static double XSECTION_AREA = ((.0276) * Math.pow(RIDER_HEIGHT_M, .725)) * (Math.pow(RIDER_WEIGHT_KG, .425)) + .1647;
+    private static float RIDER_WEIGHT_KG;
+    private static float BIKE_WEIGHT_KG;
+    private static float COMBINED_WEIGHT;
+    private static float RIDER_HEIGHT_M;
+    private static float XSECTION_AREA;
 
     // Constants
-    private static double DRIVE_EFFICIENCY = 0.97698;
-    private static double BIKE_DRAG_COEFFICIENT = 0.84;
-    private static double RR_COEFFICIENT = 0.0032;
-    private static double GRAVITY = 9.8067;
-    private static double SPECIFIC_GAS_CONST = 287.058;
+    private static final double DRIVE_EFFICIENCY = 0.97698;
+    private static final double BIKE_DRAG_COEFFICIENT = 0.84;
+    private static final double RR_COEFFICIENT = 0.0032;
+    private static final double GRAVITY = 9.8067;
+    private static final double SPECIFIC_GAS_CONST = 287.058;
 
     private double airDensity;
 
@@ -94,11 +107,23 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private File file;
     private String currFile;
 
+    private static final int FINE_LOCATIONS_PERMISSION = 1;
+    private static final int EXTERNAL_PERMISSION = 2;
+
+    private SharedPreferences sp;
+    private JSONObject weather;
+
+    private static final String URL = "http://api.openweathermap.org/data/2.5/weather?lat=%1$f&lon=%2$f&appid=8d7396e82f9d3184596213c682c8cc45";
+    private String url;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        sp = getSharedPreferences("pcprefs", Context.MODE_PRIVATE);
+
+        setPreferences(sp);
         setUI();
         setGAPI();
 
@@ -109,6 +134,26 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         if (pressureSensor != null) {
             sensorMan.registerListener(this, pressureSensor, SensorManager.SENSOR_DELAY_UI);
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.settings_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle item selection
+        switch (item.getItemId()) {
+            case R.id.settings:
+                Intent settingsIntent = new Intent(this, SettingsActivity.class);
+                this.startActivity(settingsIntent);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
     }
 
@@ -144,40 +189,67 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 currElevation = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg);
                 //Log.d("Elevation avg", SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg) +"");
             }
-            airDensity = (event.values[0] * 100)/(SPECIFIC_GAS_CONST * 291); // TODO 291 is 64F
+            airDensity = (event.values[0] * 100)/(SPECIFIC_GAS_CONST * currTemp); // TODO 291 is 64F
         }
     }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
+        // do nothing
     }
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION},FINE_LOCATIONS_PERMISSION);
+            }
             return;
         }
-        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        //mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         // TODO SET EVERYTHING
-        if (mLastLocation != null) {
-            latlongText.setText("LAT " + mLastLocation.getLatitude() + " LONG " + mLastLocation.getLongitude());
-        }
+        //if (mLastLocation != null) {
+        //    latlongText.setText("LAT " + mLastLocation.getLatitude() + " LONG " + mLastLocation.getLongitude());
+        //}
         startLocationUpdates();
     }
 
     protected void startLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION},FINE_LOCATIONS_PERMISSION);
+            }
             return;
         }
         LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case FINE_LOCATIONS_PERMISSION: {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // we set fam
+                }
+                else {
+                    // TODO toast to the user fuck you
+                }
+                return;
+            }
+            case EXTERNAL_PERMISSION: {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // we set fam
+                }
+                else {
+                    // TODO TOAST FUCK YOU
+                }
+                return;
+            }
+        }
     }
 
     @Override
@@ -199,6 +271,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     @Override
     public void onLocationChanged(Location location) {
+        if (currTemp == 0.0F) {
+            getWeather(location.getLatitude(), location.getLongitude());
+        }
         mLastLocation = mCurrentLocation;
         mCurrentLocation = location;
         if (mCurrentLocation != null && mLastLocation != null) {
@@ -224,7 +299,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         latlongText.setText(mCurrentLocation.getLatitude() + "\n" + mCurrentLocation.getLongitude());
         powerText.setText((int)power + "W");
         speedText.setText(Math.round((velocity*2.23694)*1e1)/1e1 + "MPH");
-        writeCSV(currFile, velocity, grade, firstRun);
+        writeCSV(currFile, velocity, grade, power, firstRun);
     }
 
     private void setUI() {
@@ -292,24 +367,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private double calcPower(double velocity, double grade) {
-        /**
-        Log.d("THINGS","THINGS");
-        if (outputFile) {
-            Log.d("OTHER","OTHER");
-            try {
-                Log.d("OUTPUT", "FILEOUT");
-                //file = new File(getApplicationContext().getFilesDir(), "test.csv");
-                OutputStreamWriter outputF = new OutputStreamWriter(getApplicationContext().openFileOutput("test.csv", Context.MODE_APPEND));
-                String test = "test string";
-                outputF.write(test);
-                outputF.flush();
-                outputF.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        **/
-
         if (velocity < disregardSpeedUnder) {
             lastPower = 0;
             return lastPower;
@@ -327,7 +384,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         return lastPower;
     }
 
-    private void writeCSV(String filename, double velocity, double grade, boolean firstRun) {
+    private void writeCSV(String filename, double velocity, double grade, double power, boolean firstRun) {
+        // TODO DONT CALL THIS ALL THE TIME
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},EXTERNAL_PERMISSION);
+            }
+            return;
+        }
+
+
         File root = Environment.getExternalStorageDirectory();
         File dir = new File(root.getAbsolutePath() + "/powerCycle");
         dir.mkdirs();
@@ -336,18 +404,94 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         try {
             FileOutputStream fos = new FileOutputStream(output, true);
             PrintWriter pw = new PrintWriter(fos);
-            if (firstRun) pw.write("time,velocity,lat,long,grade\n");
+            if (firstRun) pw.write("time,lat,long,velocity,elevation,temp,dist,grade,power\n");
             pw.write(mCurrentLocation.getTime() + ","
-                    + velocity + ","
                     + mCurrentLocation.getLatitude() + ","
                     + mCurrentLocation.getLongitude() + ","
+                    + velocity + ","
+                    + currElevation + ","
+                    + currTemp + ","
+                    + mCurrentLocation.distanceTo(mLastLocation) + ","
                     + grade
+                    + power + ","
                     + "\n");
             pw.flush();
             pw.close();
             fos.close();
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private void setPreferences(SharedPreferences sp) {
+        RIDER_WEIGHT_KG = sp.getFloat("riderWeight", 0);
+        BIKE_WEIGHT_KG = sp.getFloat("bikeWeight", 0);
+        RIDER_HEIGHT_M = sp.getFloat("riderHeight", 0);
+        COMBINED_WEIGHT = RIDER_WEIGHT_KG + BIKE_WEIGHT_KG;
+        XSECTION_AREA = (float)(((.0276) * Math.pow(RIDER_HEIGHT_M, .725))
+                               * (Math.pow(RIDER_WEIGHT_KG, .425)) + .1647);
+        Log.d("Preferences", "Rider W " + RIDER_WEIGHT_KG + " Bike Weight " + BIKE_WEIGHT_KG + " Rider Height " + RIDER_HEIGHT_M);
+    }
+
+    private void getWeather(double lat, double lon) {
+        // check connectivity
+        url = String.format(URL, lat, lon);
+        ConnectivityManager connMgr = (ConnectivityManager) this.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+        if (networkInfo != null && networkInfo.isConnected()) {
+            new getWebpage().execute(url);
+        } else {
+            Toast.makeText(this, "Failed to Get Page", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void setTemp() {
+        try {
+            currTemp = Float.valueOf(weather.getJSONObject("main").get("temp").toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private class getWebpage extends AsyncTask<String, Void, JSONObject> {
+        @Override
+        protected JSONObject doInBackground(String... urls) {
+            try {
+                return getJSON(urls[0]);
+            } catch (IOException e) {
+                return null;
+            } catch (JSONException e) {
+                return null;
+            }
+        }
+        @Override
+        protected void onPostExecute(JSONObject result) {
+            weather = result;
+            setTemp();
+        }
+
+        private JSONObject getJSON(String mUrl) throws IOException, JSONException {
+            HttpURLConnection conn = null;
+            URL url = new URL(mUrl);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setReadTimeout(10000 /* milliseconds */);
+            conn.setConnectTimeout(15000 /* milliseconds */);
+            conn.setDoOutput(true);
+            // connect to web
+            conn.connect();
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()));
+            char[] buff = new char[1024];
+            String line;
+            StringBuilder sb = new StringBuilder();
+            while ((line = br.readLine()) != null) {
+                sb.append(line+"\n");
+            }
+            br.close();
+
+            String jsonString = sb.toString();
+            return new JSONObject(jsonString);
         }
     }
 

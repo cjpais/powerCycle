@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">PowerCycle</string>
+    <string name="pref_key">pcprefs</string>
 </resources>
