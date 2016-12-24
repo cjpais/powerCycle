@@ -1,4 +1,19 @@
 <resources>
     <string name="app_name">PowerCycle</string>
+
+    <!-- activity_main.xml -->
+    <string name="velocity_static">Velocity (m/s)</string>
+    <string name="latlong_static">LatLong</string>
+    <string name="height_static">Height (m)</string>
+    <string name="dist_static">Distance (m)</string>
+    <string name="grav_static">Force Gravity</string>
+    <string name="rr_static">Force RR</string>
+    <string name="drag_static">Force Drag</string>
+
+
+    <!-- Preferences -->
     <string name="pref_key">pcprefs</string>
+    <string name="rider_weight">riderWeight</string>
+    <string name="rider_height">riderHeight</string>
+    <string name="bike_weight">bikeWeight</string>
 </resources>

@@ -10,6 +10,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
+import android.media.MediaScannerConnection;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
@@ -54,11 +55,11 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
 
     // Google API SHIT
-    private static int REQUEST_CODE_RECOVER_PLAY_SERVICES = 200;
     private GoogleApiClient mGoogleApiClient;
     private Location mLastLocation;
     private Location mCurrentLocation;
@@ -66,7 +67,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private static double disregardSpeedUnder = 2.235;
 
-    private double lastPower;
     private float lastElevation;
     private float currElevation;
     private float currTemp = 0.0F;
@@ -76,12 +76,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private static float BIKE_WEIGHT_KG;
     private static float COMBINED_WEIGHT;
     private static float RIDER_HEIGHT_M;
-    private static float XSECTION_AREA;
+    private static double XSECTION_AREA;
 
     // Constants
     private static final double DRIVE_EFFICIENCY = 0.97698;
     private static final double BIKE_DRAG_COEFFICIENT = 0.84;
-    private static final double RR_COEFFICIENT = 0.0032;
+    private static final double RR_COEFFICIENT = 0.004; // .0032 represents smooth asphalt
     private static final double GRAVITY = 9.8067;
     private static final double SPECIFIC_GAS_CONST = 287.058;
 
@@ -101,14 +101,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public TextView speedText;
     public TextView gradeText;
 
-    public ArrayList<Float> pressArr = new ArrayList<Float>(20);
+    public ArrayList<Float> pressArr = new ArrayList<>(15);
 
     private boolean outputFile = true;
+    private boolean filePermission = false;
+    private boolean gpsPermission = false;
     private File file;
     private String currFile;
 
     private static final int FINE_LOCATIONS_PERMISSION = 1;
     private static final int EXTERNAL_PERMISSION = 2;
+    private static final int BOTH_PERMISSIONS = 3;
 
     private SharedPreferences sp;
     private JSONObject weather;
@@ -121,7 +124,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        sp = getSharedPreferences("pcprefs", Context.MODE_PRIVATE);
+        String[] neededPerms = getRequiredPerms();
+        requestAppPermissions(neededPerms);
+
+        sp = getSharedPreferences(getString(R.string.pref_key), Context.MODE_PRIVATE);
+
+        if (!preferencesSet(sp)) {
+            Toast.makeText(this, "Please Set Preferences", Toast.LENGTH_LONG);
+            Intent settingsIntent = new Intent(this, SettingsActivity.class);
+            this.startActivity(settingsIntent);
+        }
 
         setPreferences(sp);
         setUI();
@@ -157,20 +169,48 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
-    protected void onStart() {
-        mGoogleApiClient.connect();
-        super.onStart();
+    private void setUI() {
+        speedView = (TextView) findViewById(R.id.velocityText);
+        altText = (TextView) findViewById(R.id.altText);
+        distanceText = (TextView) findViewById(R.id.distText);
+        latlongText = (TextView) findViewById(R.id.latLongText);
+        powerText = (TextView) findViewById(R.id.powerText);
+
+        gravText = (TextView) findViewById(R.id.gravText);
+        rrText = (TextView) findViewById(R.id.rrText);
+        dragText = (TextView) findViewById(R.id.dragText);
+        speedText = (TextView) findViewById(R.id.speedText);
+        gradeText = (TextView) findViewById(R.id.gradeText);
     }
 
-    protected void onStop() {
-        sensorMan.unregisterListener(this);
-        mGoogleApiClient.disconnect();
-        super.onStop();
+    private String[] getRequiredPerms() {
+        ArrayList<String> needed = new ArrayList<>();
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+        return needed.toArray(new String[needed.size()]);
     }
 
+    private void requestAppPermissions(String[] permissions) {
+        if (permissions.length == 0) return;
+        ActivityCompat.requestPermissions(this, permissions,BOTH_PERMISSIONS);
+    }
+
+    private boolean preferencesSet(SharedPreferences sp) {
+        float prefRWeight = sp.getFloat(getString(R.string.rider_weight), 0);
+        float prefRHeight = sp.getFloat(getString(R.string.rider_height), 0);
+        float prefBWeight = sp.getFloat(getString(R.string.bike_weight), 0);
+        if (prefRWeight == 0 || prefRWeight == 0 || prefBWeight == 0) return false;
+        return true;
+    }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        // TODO IF THE DIFFERENCE IS GREATER THAN 30% between two readings then throw out.
         if (event.sensor.getType() == Sensor.TYPE_PRESSURE) {
             if (pressArr.size() < 20) {
                 pressArr.add(event.values[0]);
@@ -189,7 +229,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 currElevation = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg);
                 //Log.d("Elevation avg", SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, presAvg) +"");
             }
-            airDensity = (event.values[0] * 100)/(SPECIFIC_GAS_CONST * currTemp); // TODO 291 is 64F
+            airDensity = (event.values[0] * 100)/(SPECIFIC_GAS_CONST * currTemp);
         }
     }
 
@@ -202,24 +242,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     public void onConnected(@Nullable Bundle bundle) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-
+                // do nothing
             } else {
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION},FINE_LOCATIONS_PERMISSION);
             }
             return;
         }
-        //mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        // TODO SET EVERYTHING
-        //if (mLastLocation != null) {
-        //    latlongText.setText("LAT " + mLastLocation.getLatitude() + " LONG " + mLastLocation.getLongitude());
-        //}
         startLocationUpdates();
     }
 
     protected void startLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-
+                // do nothing
             } else {
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION},FINE_LOCATIONS_PERMISSION);
             }
@@ -236,7 +271,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     // we set fam
                 }
                 else {
-                    // TODO toast to the user fuck you
+                    Toast.makeText(this, "Please enable GPS to get power estimate.", Toast.LENGTH_SHORT).show();
                 }
                 return;
             }
@@ -245,7 +280,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     // we set fam
                 }
                 else {
-                    // TODO TOAST FUCK YOU
+                    Toast.makeText(this, "Writing External Permissions Denied", Toast.LENGTH_SHORT).show();
                 }
                 return;
             }
@@ -284,36 +319,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private void updateUI() {
         boolean firstRun = false;
         if (currFile == null) {
-            DateFormat dFormat = new SimpleDateFormat("HH-mm-ss-MM-dd-yyyy");
+            DateFormat dFormat = new SimpleDateFormat("HH-mm-ss-MM-dd-yyyy", Locale.US);
             Date date = new Date(mCurrentLocation.getTime());
             currFile = dFormat.format(date);
             firstRun = true;
         }
         double velocity = getSpeed();
         double grade = calcGrade(velocity);
-        Log.d("UPDATE", "UPDATING UI FROM LOCATION CHANGED " + mCurrentLocation.getTime());
-        double power = calcPower(velocity, grade);
+        double[] power = calcPower(velocity, grade);
         speedView.setText("" + velocity);
         altText.setText("" + currElevation);
         distanceText.setText("" + mCurrentLocation.distanceTo(mLastLocation));
         latlongText.setText(mCurrentLocation.getLatitude() + "\n" + mCurrentLocation.getLongitude());
-        powerText.setText((int)power + "W");
+        powerText.setText((int)power[0] + "W");
         speedText.setText(Math.round((velocity*2.23694)*1e1)/1e1 + "MPH");
-        writeCSV(currFile, velocity, grade, power, firstRun);
-    }
-
-    private void setUI() {
-        speedView = (TextView) findViewById(R.id.velocityText);
-        altText = (TextView) findViewById(R.id.altText);
-        distanceText = (TextView) findViewById(R.id.distText);
-        latlongText = (TextView) findViewById(R.id.latLongText);
-        powerText = (TextView) findViewById(R.id.powerText);
-
-        gravText = (TextView) findViewById(R.id.gravText);
-        rrText = (TextView) findViewById(R.id.rrText);
-        dragText = (TextView) findViewById(R.id.dragText);
-        speedText = (TextView) findViewById(R.id.speedText);
-        gradeText = (TextView) findViewById(R.id.gradeText);
+        // if the user gives permission write the csv, TODO should be done async really
+        if (filePermission) writeCSV(currFile, velocity, grade, power, firstRun);
     }
 
     private void setGAPI() {
@@ -355,56 +376,58 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         if (velocity < disregardSpeedUnder) {
             return 0;
         }
-        // TODO SHOULD BE LAST ELEVATION USED
         double grade = (currElevation-lastElevation)/mCurrentLocation.distanceTo(mLastLocation);
+        // if some extreme grade dont calculate, we want to keep negatives for logging accuracy
         if (grade > .27 || grade < -.27) {
             grade = 0;
         }
-        gradeText.setText("" + grade + " " + currElevation);
-        Log.d("GRADE", grade + "");
+        gradeText.setText("" + grade);
         lastElevation = currElevation;
         return grade;
     }
 
-    private double calcPower(double velocity, double grade) {
+    private double[] calcPower(double velocity, double grade) {
+        double[] lastPower = new double[4];
+        /**
         if (velocity < disregardSpeedUnder) {
-            lastPower = 0;
+            lastPower[0] = 0;
             return lastPower;
         }
-        double forceGrav = COMBINED_WEIGHT * GRAVITY * grade; // * slope TODO NEED SLOPE
+
+        // we kept the negative earlier to estimate grade
+        if (grade < 0) {
+            grade = 0;
+        }
+         **/
+        double forceGrav = COMBINED_WEIGHT * GRAVITY * grade;
         double forceRR = COMBINED_WEIGHT * GRAVITY * RR_COEFFICIENT;
         double forceDrag = (.5 * XSECTION_AREA * BIKE_DRAG_COEFFICIENT * velocity * velocity * airDensity);
+
+        Log.d("VARIABLES", "XSECTION: " + XSECTION_AREA);
 
         gravText.setText(forceGrav + "");
         rrText.setText(forceRR + "");
         dragText.setText(forceDrag + "");
 
-        lastPower = Math.floor((forceGrav + forceRR + forceDrag) * velocity) / DRIVE_EFFICIENCY;
+        lastPower[0] = Math.floor((forceGrav + forceRR + forceDrag) * velocity) / DRIVE_EFFICIENCY;
+        lastPower[1] = forceGrav;
+        lastPower[2] = forceRR;
+        lastPower[3] = forceDrag;
 
         return lastPower;
     }
 
-    private void writeCSV(String filename, double velocity, double grade, double power, boolean firstRun) {
-        // TODO DONT CALL THIS ALL THE TIME
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-
-            } else {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},EXTERNAL_PERMISSION);
-            }
-            return;
-        }
-
-
+    private void writeCSV(String filename, double velocity, double grade, double[] power, boolean firstRun) {
         File root = Environment.getExternalStorageDirectory();
         File dir = new File(root.getAbsolutePath() + "/powerCycle");
         dir.mkdirs();
         File output = new File(dir, filename + ".csv");
+        MediaScannerConnection.scanFile(this, new String[] {dir.toString(), output.toString()}, null, null);
 
         try {
             FileOutputStream fos = new FileOutputStream(output, true);
             PrintWriter pw = new PrintWriter(fos);
-            if (firstRun) pw.write("time,lat,long,velocity,elevation,temp,dist,grade,power\n");
+            if (firstRun) pw.write("time,lat,long,velocity,elevation,temp,dist,grade,forcegrav,forcerr,forcedrag,power\n");
             pw.write(mCurrentLocation.getTime() + ","
                     + mCurrentLocation.getLatitude() + ","
                     + mCurrentLocation.getLongitude() + ","
@@ -412,8 +435,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     + currElevation + ","
                     + currTemp + ","
                     + mCurrentLocation.distanceTo(mLastLocation) + ","
-                    + grade
-                    + power + ","
+                    + grade + ","
+                    + power[1] + ","
+                    + power[2] + ","
+                    + power[3] + ","
+                    + power[0] + ","
                     + "\n");
             pw.flush();
             pw.close();
@@ -424,12 +450,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void setPreferences(SharedPreferences sp) {
-        RIDER_WEIGHT_KG = sp.getFloat("riderWeight", 0);
-        BIKE_WEIGHT_KG = sp.getFloat("bikeWeight", 0);
-        RIDER_HEIGHT_M = sp.getFloat("riderHeight", 0);
+        RIDER_WEIGHT_KG = sp.getFloat(getString(R.string.rider_weight), 0);
+        BIKE_WEIGHT_KG = sp.getFloat(getString(R.string.bike_weight), 0);
+        RIDER_HEIGHT_M = sp.getFloat(getString(R.string.rider_height), 0);
         COMBINED_WEIGHT = RIDER_WEIGHT_KG + BIKE_WEIGHT_KG;
-        XSECTION_AREA = (float)(((.0276) * Math.pow(RIDER_HEIGHT_M, .725))
-                               * (Math.pow(RIDER_WEIGHT_KG, .425)) + .1647);
+        XSECTION_AREA = (((.0276) * Math.pow(RIDER_HEIGHT_M, .725)) * (Math.pow(RIDER_WEIGHT_KG, .425)) + .1647);
         Log.d("Preferences", "Rider W " + RIDER_WEIGHT_KG + " Bike Weight " + BIKE_WEIGHT_KG + " Rider Height " + RIDER_HEIGHT_M);
     }
 
@@ -495,10 +520,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
+    protected void onStart() {
+        mGoogleApiClient.connect();
+        super.onStart();
+    }
+
+    protected void onStop() {
+        sensorMan.unregisterListener(this);
+        mGoogleApiClient.disconnect();
+        super.onStop();
+    }
+
 
     protected void onPause() {
         sensorMan.unregisterListener(this);
         mGoogleApiClient.disconnect();
         super.onPause();
+    }
+
+    protected void onResume() {
+        mGoogleApiClient.connect();
+        setPreferences(sp);
+        super.onResume();
     }
 }
